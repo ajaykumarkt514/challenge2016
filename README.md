@@ -1,41 +1,181 @@
-# Real Image Challenge 2016
+# Distributor Permissions API
 
-In the cinema business, a feature film is usually provided to a regional distributor based on a contract for exhibition in a particular geographical territory.
+This API enables the management and verification of distributor access permissions. Each distributor can have specific regions `INCLUDE` and `EXCLUDE`. A `Check Permission` endpoint allows you to validate if a distributor has permission to operate in a specified region.
 
-Each authorization is specified by a combination of included and excluded regions. For example, a distributor might be authorzied in the following manner:
+## Table of Contents
+- [Installation](#installation)
+- [Endpoints](#endpoints)
+  - [Add Distributor](#add-distributor)
+  - [Get Distributor](#get-distributor)
+  - [Check Permission](#check-permission)
+- [Usage Examples](#usage-examples)
+- [Error Codes](#error-codes)
+
+---
+
+## Installation
+
+1. **Clone the Repository**:
+   ```bash
+   git clone <repo-url>
+   cd <repo-folder>
+   ```
+2. **Install Dependencies**:
+   ```bash
+   go mod tidy
+   ```
+3. **Run the Server**:
+   ```bash
+   go run main.go
+   ```
+   The server will start on `http://localhost:8000`.
+
+---
+
+## Endpoints
+
+### Add Distributor
+
+**Description**: Adds a new distributor with specified `INCLUDE` and `EXCLUDE` permissions.
+
+- **URL**: `/distributor`
+- **Method**: `POST`
+- **Headers**:
+  - `Content-Type`: `application/json`
+- **Request Body**:
+  - `name` (string): Name of the distributor.
+  - `parent` (string): Name of the parent distributor.
+  - `include` (array of strings): Regions where the distributor has permission to operate. Accepted formats: `COUNTRY`, `PROVINCE-COUNTRY`, or `CITY-PROVINCE-COUNTRY`.
+  - `exclude` (array of strings): Regions where the distributor is restricted from operating. Accepted formats: `COUNTRY`, `PROVINCE-COUNTRY`, or `CITY-PROVINCE-COUNTRY`.
+
+#### Example Request
+```bash
+curl --location 'http://localhost:8000/distributor' \
+--header 'Content-Type: application/json' \
+--data '{
+    "name": "DIST",
+    "include": [
+        "INDIA"
+    ],
+    "exclude": [
+        "KARNATAKA-INDIA"
+    ]
+}'
 ```
-Permissions for DISTRIBUTOR1
-INCLUDE: INDIA
-INCLUDE: UNITEDSTATES
-EXCLUDE: KARNATAKA-INDIA
-EXCLUDE: CHENNAI-TAMILNADU-INDIA
+
+#### Example Response
+- **201 Created** on success.
+- **400 Bad Request** if input data is invalid.
+- **404 Not Found** if parent distributor not found.
+
+---
+
+### Get Distributor
+
+**Description**: Retrieves details of a distributor, with all their permissions.
+
+- **URL**: `/distributor/{name}`
+- **Method**: `GET`
+- **Parameters**:
+  - `name` (string): Name of the distributor.
+
+#### Example Request
+```bash
+curl --location 'http://localhost:8000/distributor/DIST'
 ```
-This allows `DISTRIBUTOR1` to distribute in any city inside the United States and India, *except* cities in the state of Karnataka (in India) and the city of Chennai (in Tamil Nadu, India).
 
-At this point, asking your program if `DISTRIBUTOR1` has permission to distribute in `CHICAGO-ILLINOIS-UNITEDSTATES` should get `YES` as the answer, and asking if distribution can happen in `CHENNAI-TAMILNADU-INDIA` should of course be `NO`. Asking if distribution is possible in `BANGALORE-KARNATAKA-INDIA` should also be `NO`, because the whole state of Karnataka has been excluded.
-
-Sometimes, a distributor might split the work of distribution amount smaller sub-distiributors inside their authorized geographies. For instance, `DISTRIBUTOR1` might assign the following permissions to `DISTRIBUTOR2`:
-
+#### Example Response
+```json
+{
+  "data": {
+    "name": "DIST",
+    "locations": {
+      "INDIA": {
+        "code": "IN",
+        "provinces": {
+          "KARNATAKA": {
+            "code": "KA",
+            "cities": {
+              "BENGALURU": {
+                "code": "BENAU"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
 ```
-Permissions for DISTRIBUTOR2 < DISTRIBUTOR1
-INCLUDE: INDIA
-EXCLUDE: TAMILNADU-INDIA
+
+---
+
+### Check Permission
+
+**Description**: Checks if a distributor has access to a specific region.
+
+- **URL**: `/distributor/{name}/permission`
+- **Method**: `GET`
+- **Parameters**:
+  - `name` (string): Name of the distributor.
+  - `region` (query parameter, string): Region to check for access, formatted as `COUNTRY`, `PROVINCE-COUNTRY`, or `CITY-PROVINCE-COUNTRY`.
+
+
+---
+
+#### Example Request
+```bash
+curl --location 'http://localhost:8000/distributor/DIST/permission?region=TAMILNADU-INDIA'
 ```
-Now, `DISTRIBUTOR2` can distribute the movie anywhere in `INDIA`, except inside `TAMILNADU-INDIA` and `KARNATAKA-INDIA` - `DISTRIBUTOR2`'s permissions are always a subset of `DISTRIBUTOR1`'s permissions. It's impossible/invalid for `DISTRIBUTOR2` to have `INCLUDE: CHINA`, for example, because `DISTRIBUTOR1` isn't authorized to do that in the first place. 
 
-If `DISTRIBUTOR2` authorizes `DISTRIBUTOR3` to handle just the city of Hubli, Karnataka, India, for example:
+#### Example Response
+```json
+{
+  "data": "NO"
+}
 ```
-Permissions for DISTRIBUTOR3 < DISTRIBUTOR2 < DISTRIBUTOR1
-INCLUDE: HUBLI-KARNATAKA-INDIA
+
+- **Possible Responses**:
+  - `"YES"` if the distributor has permission.
+  - `"NO"` if the distributor is restricted from the region.
+  - **400 Bad Request** if the region format is invalid.
+
+---
+
+## Usage Examples
+
+### Adding a Distributor
+```bash
+curl --location 'http://localhost:8000/distributor' \
+--header 'Content-Type: application/json' \
+--data '{
+    "name": "DIST",
+    "include": [
+        "INDIA"
+    ],
+    "exclude": [
+        "KARNATAKA-INDIA"
+    ]
+}'
 ```
-Again, `DISTRIBUTOR2` cannot authorize `DISTRIBUTOR3` with a region that they themselves do not have access to. 
 
-We've provided a CSV with the list of all countries, states and cities in the world that we know of - please use the data mentioned there for this program. *The codes you see there may be different from what you see here, so please always use the codes in the CSV*. This Readme is only an example. 
+### Retrieving a Distributor
+```bash
+curl --location 'http://localhost:8000/distributor/DIST'
+```
 
-Write a program in any language you want (If you're here from Gophercon, use Go :D) that does this. Feel free to make your own input and output format / command line tool / GUI / Webservice / whatever you want. Feel free to hold the dataset in whatever structure you want, but try not to use external databases - as far as possible stick to your langauage without bringing in MySQL/Postgres/MongoDB/Redis/Etc.
+### Checking Permission for a Region
+```bash
+curl --location 'http://localhost:8000/distributor/DIST/permission?region=BANGALORE-KARNATAKA-INDIA'
+```
 
-To submit a solution, fork this repo and send a Pull Request on Github. 
+---
 
-For any questions or clarifications, raise an issue on this repo and we'll answer your questions as fast as we can.
+## Error Codes
+
+- **400 Bad Request**: Invalid input or region format.
+- **404 Not Found**: Distributor not found.
+
+---
 
 
